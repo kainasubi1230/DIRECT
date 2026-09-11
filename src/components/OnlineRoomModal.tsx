@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Globe, Copy, Check, X, Users, Play, Sparkles } from 'lucide-react';
+import { Globe, Copy, Check, X, Users, Play, Sparkles, ArrowRight } from 'lucide-react';
 
 interface OnlineRoomModalProps {
   isOpen: boolean;
@@ -61,6 +61,7 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800"
+          title="閉じる"
         >
           <X className="w-5 h-5" />
         </button>
@@ -70,8 +71,8 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
             <Globe className="w-6 h-6 text-cyan-400" />
           </div>
           <div>
-            <h2 className="font-extrabold text-lg text-slate-100">オンライン対戦 (P2P)</h2>
-            <p className="text-xs text-slate-400">WebRTCによる直接リアルタイム通信</p>
+            <h2 className="font-extrabold text-lg text-slate-100">オンライン対戦 (Firebase / P2P)</h2>
+            <p className="text-xs text-slate-400">リアルタイム同期対戦ルーム</p>
           </div>
         </div>
 
@@ -90,20 +91,19 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
               {connectionStatus === 'CONNECTED' && <Sparkles className="w-4 h-4 text-emerald-400 animate-bounce" />}
               <span>{statusMessage || connectionStatus}</span>
             </div>
-            {connectionStatus === 'CONNECTED' && (
-              <button
-                onClick={onClose}
-                className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs transition-all"
-              >
-                対戦画面へ
-              </button>
-            )}
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition-all flex items-center gap-1 shadow"
+            >
+              <span>対戦画面へ</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
         {/* Create Room Section */}
         <div className="flex flex-col gap-3 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl">
-          <h3 className="font-bold text-sm text-slate-200">1. ルームを作成する (ホスト)</h3>
+          <h3 className="font-bold text-sm text-slate-200">1. ルームを作成する (ホスト / P1)</h3>
           {currentRoomCode ? (
             <div className="flex flex-col gap-2">
               <span className="text-xs text-slate-400">あなたのルームコード:</span>
@@ -133,7 +133,7 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
 
         {/* Join Room Section */}
         <div className="flex flex-col gap-3 p-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl">
-          <h3 className="font-bold text-sm text-slate-200">2. ルームに参加する (ゲスト)</h3>
+          <h3 className="font-bold text-sm text-slate-200">2. ルームに参加する (ゲスト / P2)</h3>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -145,13 +145,24 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
             <button
               onClick={handleJoin}
               disabled={inputCode.trim().length < 4}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-cyan-300 font-bold rounded-xl text-xs transition-all flex items-center gap-1"
+              className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-extrabold rounded-xl text-xs transition-all flex items-center gap-1 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
             >
               <Play className="w-4 h-4" />
               参加
             </button>
           </div>
         </div>
+
+        {/* Manual Enter Game Button */}
+        {(currentRoomCode || connectionStatus !== 'DISCONNECTED') && (
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold rounded-2xl text-xs transition-all border border-slate-700 flex items-center justify-center gap-2"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>対戦画面へ移動する</span>
+          </button>
+        )}
       </div>
     </div>
   );

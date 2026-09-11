@@ -6,6 +6,7 @@ import {
   Position,
   WallLength,
   WallOrientation,
+  CardType,
   GameMode,
   AIDifficulty,
   PlayerId
@@ -59,7 +60,7 @@ export default function Home() {
     return true;
   }, [gameState.winner, gameState.gameMode, gameState.currentTurn, myPlayerId]);
 
-  // Sync online state helper (Dual Firebase + PeerJS Sync for 100% reliability)
+  // Sync online state helper (Dual Firebase + PeerJS Sync)
   const syncStateOnline = (newState: GameState) => {
     const onlineState = { ...newState, gameMode: 'ONLINE_P2P' as const };
     setGameState(onlineState);
@@ -68,16 +69,6 @@ export default function Home() {
       peerManager.sendStateSync(onlineState);
     }
   };
-
-  // Auto-close Online Modal when connected
-  useEffect(() => {
-    if (onlineStatus === 'CONNECTED') {
-      const timer = setTimeout(() => {
-        setIsOnlineModalOpen(false);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [onlineStatus]);
 
   // AI Turn Triggering Effect
   useEffect(() => {
@@ -191,53 +182,58 @@ export default function Home() {
     syncStateOnline(resetState);
   };
 
-  // Online Room Creation (Host) via Firebase + PeerJS
+  // Online Room Creation (Host / P1)
   const handleCreateRoom = (code: string) => {
     setRoomCode(code);
     setMyPlayerId(1);
     setFlipBoard(false);
     const initSt = createInitialState('ONLINE_P2P', gameState.aiDifficulty);
     setGameState(initSt);
+    setOnlineStatus('CONNECTING');
+    setOnlineStatusMsg('ルームを作成中...');
 
     const onStateUpdate = (receivedState: GameState) => {
       setGameState({ ...receivedState, gameMode: 'ONLINE_P2P' });
+      setOnlineStatus('CONNECTED');
     };
 
     const onStatusUpdate = (status: any, msg?: string) => {
-      setOnlineStatus(status);
+      setOnlineStatus((prev) => (prev === 'CONNECTED' && status !== 'CONNECTED' ? prev : status));
       if (msg) setOnlineStatusMsg(msg);
     };
 
-    // Initialize Firebase Room Creation
     firebaseMultiplayer.createRoom(code, initSt, onStateUpdate, onStatusUpdate);
-
-    // Initialize PeerJS P2P fallback
     peerManager.initHost(code, onStateUpdate, onStatusUpdate, () => {
       peerManager.sendStateSync(initSt);
     });
   };
 
-  // Online Room Joining (Guest) via Firebase + PeerJS
+  // Online Room Joining (Guest / P2)
   const handleJoinRoom = (code: string) => {
     setRoomCode(code);
     setMyPlayerId(2);
-    setFlipBoard(true);
+    setFlipBoard(true); // Player 2 perspective
     const initSt = createInitialState('ONLINE_P2P', gameState.aiDifficulty);
     setGameState(initSt);
+    setOnlineStatus('CONNECTING');
+    setOnlineStatusMsg('対戦ルームに接続中...');
+
+    // Auto-close modal after 600ms so Guest immediately sees the battle screen with role banner!
+    setTimeout(() => {
+      setIsOnlineModalOpen(false);
+    }, 600);
 
     const onStateUpdate = (receivedState: GameState) => {
       setGameState({ ...receivedState, gameMode: 'ONLINE_P2P' });
+      setOnlineStatus('CONNECTED');
     };
 
     const onStatusUpdate = (status: any, msg?: string) => {
-      setOnlineStatus(status);
+      setOnlineStatus((prev) => (prev === 'CONNECTED' && status !== 'CONNECTED' ? prev : status));
       if (msg) setOnlineStatusMsg(msg);
     };
 
-    // Initialize Firebase Room Joining
     firebaseMultiplayer.joinRoom(code, onStateUpdate, onStatusUpdate);
-
-    // Initialize PeerJS P2P fallback
     peerManager.initGuest(code, onStateUpdate, onStatusUpdate);
   };
 

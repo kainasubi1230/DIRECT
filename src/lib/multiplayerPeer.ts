@@ -2,28 +2,31 @@ import { GameState, PlayerId } from '@/types/game';
 
 export type PeerMessageType =
   | { type: 'STATE_SYNC'; state: GameState }
-  | { type: 'MOVE_ACTION'; action: any }
-  | { type: 'CHAT_MESSAGE'; text: string; sender: string }
   | { type: 'PLAYER_JOINED'; role: PlayerId }
-  | { type: 'RESTART_GAME' };
+  | { type: 'CHAT_MESSAGE'; text: string; sender: string };
 
 export class PeerManager {
   private peer: any = null;
   private conn: any = null;
   private onStateSyncCallback?: (state: GameState) => void;
   private onStatusChangeCallback?: (status: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR', message?: string) => void;
-  private onChatCallback?: (msg: { text: string; sender: string }) => void;
+  private onPlayerJoinedCallback?: () => void;
   private isHost: boolean = false;
   private roomCode: string = '';
 
   constructor() {}
 
-  public async initHost(roomCode: string, onStateSync: (state: GameState) => void, onStatusChange: (status: any, msg?: string) => void, onChat?: any) {
+  public async initHost(
+    roomCode: string,
+    onStateSync: (state: GameState) => void,
+    onStatusChange: (status: any, msg?: string) => void,
+    onPlayerJoined?: () => void
+  ) {
     this.roomCode = roomCode;
     this.isHost = true;
     this.onStateSyncCallback = onStateSync;
     this.onStatusChangeCallback = onStatusChange;
-    this.onChatCallback = onChat;
+    this.onPlayerJoinedCallback = onPlayerJoined;
 
     const PeerModule = (await import('peerjs')).default;
     const peerId = `direct-game-${roomCode}`;
@@ -44,6 +47,7 @@ export class PeerManager {
       this.conn = connection;
       this.setupConnectionHandlers();
       this.onStatusChangeCallback?.('CONNECTED', '対戦相手が接続しました！対戦を開始します...');
+      this.onPlayerJoinedCallback?.();
     });
 
     this.peer.on('error', (err: any) => {
@@ -52,12 +56,15 @@ export class PeerManager {
     });
   }
 
-  public async initGuest(roomCode: string, onStateSync: (state: GameState) => void, onStatusChange: (status: any, msg?: string) => void, onChat?: any) {
+  public async initGuest(
+    roomCode: string,
+    onStateSync: (state: GameState) => void,
+    onStatusChange: (status: any, msg?: string) => void
+  ) {
     this.roomCode = roomCode;
     this.isHost = false;
     this.onStateSyncCallback = onStateSync;
     this.onStatusChangeCallback = onStatusChange;
-    this.onChatCallback = onChat;
 
     const PeerModule = (await import('peerjs')).default;
     const hostPeerId = `direct-game-${roomCode}`;
@@ -69,6 +76,7 @@ export class PeerManager {
     });
 
     this.peer.on('open', () => {
+      console.log('Guest Peer opened, connecting to host:', hostPeerId);
       this.conn = this.peer.connect(hostPeerId);
       this.setupConnectionHandlers();
     });
@@ -83,14 +91,23 @@ export class PeerManager {
     if (!this.conn) return;
 
     this.conn.on('open', () => {
+      console.log('WebRTC connection established!');
       this.onStatusChangeCallback?.('CONNECTED', '接続完了！対戦画面に移行します...');
+
+      // Guest notifies Host that player joined
+      if (!this.isHost) {
+        this.conn.send({ type: 'PLAYER_JOINED', role: 2 });
+      }
     });
 
     this.conn.on('data', (data: PeerMessageType) => {
+      console.log('Received peer message:', data.type);
       if (data.type === 'STATE_SYNC') {
         this.onStateSyncCallback?.(data.state);
-      } else if (data.type === 'CHAT_MESSAGE') {
-        this.onChatCallback?.({ text: data.text, sender: data.sender });
+      } else if (data.type === 'PLAYER_JOINED') {
+        if (this.isHost) {
+          this.onPlayerJoinedCallback?.();
+        }
       }
     });
 
@@ -105,13 +122,10 @@ export class PeerManager {
 
   public sendStateSync(state: GameState) {
     if (this.conn && this.conn.open) {
+      console.log('Sending state sync over WebRTC:', state.turnCount, state.currentTurn);
       this.conn.send({ type: 'STATE_SYNC', state });
-    }
-  }
-
-  public sendChatMessage(text: string, sender: string) {
-    if (this.conn && this.conn.open) {
-      this.conn.send({ type: 'CHAT_MESSAGE', text, sender });
+    } else {
+      console.warn('Cannot sendStateSync: connection not open yet');
     }
   }
 

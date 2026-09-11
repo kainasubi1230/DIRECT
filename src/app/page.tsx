@@ -6,7 +6,6 @@ import {
   Position,
   WallLength,
   WallOrientation,
-  CardType,
   GameMode,
   AIDifficulty,
   PlayerId
@@ -23,21 +22,25 @@ import {
 import { computeBestAiAction } from '@/lib/aiEngine';
 import { sounds } from '@/lib/audio';
 import { peerManager } from '@/lib/multiplayerPeer';
+import { firebaseMultiplayer } from '@/lib/firebaseMultiplayer';
 import { Board } from '@/components/Board';
 import { WallStockPanel } from '@/components/WallStockPanel';
 import { CardPanel } from '@/components/CardPanel';
+import { CardPlayBanner } from '@/components/CardPlayBanner';
 import { GameHeader } from '@/components/GameHeader';
 import { GameLog } from '@/components/GameLog';
 import { OnlineRoomModal } from '@/components/OnlineRoomModal';
 import { RuleModal } from '@/components/RuleModal';
 import { VictoryModal } from '@/components/VictoryModal';
-import { Globe, Users, Wifi } from 'lucide-react';
+import { Wifi, RotateCw } from 'lucide-react';
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>(() => createInitialState('LOCAL', 'MEDIUM'));
   const [isMuted, setIsMuted] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isOnlineModalOpen, setIsOnlineModalOpen] = useState(false);
+  const [flipBoard, setFlipBoard] = useState(false);
+  const [cursorGroove, setCursorGroove] = useState<{ r: number; c: number }>({ r: 3, c: 3 });
 
   // Online Multiplayer State
   const [onlineStatus, setOnlineStatus] = useState<'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR'>('DISCONNECTED');
@@ -56,29 +59,25 @@ export default function Home() {
     return true;
   }, [gameState.winner, gameState.gameMode, gameState.currentTurn, myPlayerId]);
 
-  // Sync online state helper
+  // Sync online state helper (Dual Firebase + PeerJS Sync for 100% reliability)
   const syncStateOnline = (newState: GameState) => {
-    setGameState(newState);
-    if (gameState.gameMode === 'ONLINE_P2P') {
-      peerManager.sendStateSync(newState);
+    const onlineState = { ...newState, gameMode: 'ONLINE_P2P' as const };
+    setGameState(onlineState);
+    if (gameState.gameMode === 'ONLINE_P2P' || onlineStatus === 'CONNECTED') {
+      firebaseMultiplayer.syncGameState(onlineState);
+      peerManager.sendStateSync(onlineState);
     }
   };
 
-  // Auto-close Online Modal when connected & Host sync state
+  // Auto-close Online Modal when connected
   useEffect(() => {
     if (onlineStatus === 'CONNECTED') {
       const timer = setTimeout(() => {
         setIsOnlineModalOpen(false);
-      }, 1200);
-
-      // If host, send current initial state to guest
-      if (myPlayerId === 1) {
-        peerManager.sendStateSync(gameState);
-      }
-
+      }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [onlineStatus, myPlayerId, gameState]);
+  }, [onlineStatus]);
 
   // AI Turn Triggering Effect
   useEffect(() => {
@@ -124,11 +123,11 @@ export default function Home() {
     }
   };
 
-  // Action Handler: Activate Action Card
-  const handleActivateCard = (type: CardType) => {
+  // Action Handler: Activate Action Card by cardId
+  const handleActivateCard = (cardId: string) => {
     if (!isMyTurnInMode()) return;
 
-    const result = executeActivateCard(gameState, type);
+    const result = executeActivateCard(gameState, cardId);
     if (result.success) {
       sounds.playCardPlay();
       syncStateOnline(result.newState);
@@ -164,6 +163,9 @@ export default function Home() {
       ...prev,
       selectedWallLength: len,
     }));
+    if (len !== null) {
+      setCursorGroove({ r: 3, c: 3 });
+    }
   };
 
   // Action Handler: Toggle Wall Orientation
@@ -189,32 +191,54 @@ export default function Home() {
     syncStateOnline(resetState);
   };
 
-  // Online Room Creation (Host)
+  // Online Room Creation (Host) via Firebase + PeerJS
   const handleCreateRoom = (code: string) => {
     setRoomCode(code);
-    setMyPlayerId(1); // Host is Player 1 (Red)
-    peerManager.initHost(
-      code,
-      (receivedState) => setGameState(receivedState),
-      (status, msg) => {
-        setOnlineStatus(status);
-        if (msg) setOnlineStatusMsg(msg);
-      }
-    );
+    setMyPlayerId(1);
+    setFlipBoard(false);
+    const initSt = createInitialState('ONLINE_P2P', gameState.aiDifficulty);
+    setGameState(initSt);
+
+    const onStateUpdate = (receivedState: GameState) => {
+      setGameState({ ...receivedState, gameMode: 'ONLINE_P2P' });
+    };
+
+    const onStatusUpdate = (status: any, msg?: string) => {
+      setOnlineStatus(status);
+      if (msg) setOnlineStatusMsg(msg);
+    };
+
+    // Initialize Firebase Room Creation
+    firebaseMultiplayer.createRoom(code, initSt, onStateUpdate, onStatusUpdate);
+
+    // Initialize PeerJS P2P fallback
+    peerManager.initHost(code, onStateUpdate, onStatusUpdate, () => {
+      peerManager.sendStateSync(initSt);
+    });
   };
 
-  // Online Room Joining (Guest)
+  // Online Room Joining (Guest) via Firebase + PeerJS
   const handleJoinRoom = (code: string) => {
     setRoomCode(code);
-    setMyPlayerId(2); // Guest is Player 2 (Blue)
-    peerManager.initGuest(
-      code,
-      (receivedState) => setGameState(receivedState),
-      (status, msg) => {
-        setOnlineStatus(status);
-        if (msg) setOnlineStatusMsg(msg);
-      }
-    );
+    setMyPlayerId(2);
+    setFlipBoard(true);
+    const initSt = createInitialState('ONLINE_P2P', gameState.aiDifficulty);
+    setGameState(initSt);
+
+    const onStateUpdate = (receivedState: GameState) => {
+      setGameState({ ...receivedState, gameMode: 'ONLINE_P2P' });
+    };
+
+    const onStatusUpdate = (status: any, msg?: string) => {
+      setOnlineStatus(status);
+      if (msg) setOnlineStatusMsg(msg);
+    };
+
+    // Initialize Firebase Room Joining
+    firebaseMultiplayer.joinRoom(code, onStateUpdate, onStatusUpdate);
+
+    // Initialize PeerJS P2P fallback
+    peerManager.initGuest(code, onStateUpdate, onStatusUpdate);
   };
 
   // Toggle Sound Mute
@@ -239,16 +263,16 @@ export default function Home() {
 
       {/* Online Match Role & Turn Banner */}
       {gameState.gameMode === 'ONLINE_P2P' && (
-        <div className="w-full bg-slate-900/90 border-b border-cyan-500/30 px-4 py-2 flex items-center justify-center gap-3 text-xs shadow-md">
+        <div className="w-full bg-slate-900/90 border-b border-cyan-500/30 px-4 py-2 flex flex-wrap items-center justify-center gap-3 text-xs shadow-md">
           <div className="flex items-center gap-1.5 font-bold text-cyan-400">
             <Wifi className="w-4 h-4 animate-pulse text-emerald-400" />
-            <span>ROOM: {roomCode || '---'}</span>
+            <span>ROOM: {roomCode || '---'} (Firebase)</span>
           </div>
           <span className="text-slate-600">|</span>
           <div className="flex items-center gap-1.5">
             <span>あなたは</span>
             <span
-              className="font-black px-2 py-0.5 rounded-full text-white"
+              className="font-black px-2.5 py-0.5 rounded-full text-white shadow"
               style={{ backgroundColor: myPlayerId === 1 ? '#ef4444' : '#3b82f6' }}
             >
               P{myPlayerId} ({myPlayerId === 1 ? '赤 / ホスト' : '青 / ゲスト'})
@@ -260,32 +284,46 @@ export default function Home() {
             {gameState.currentTurn === myPlayerId ? (
               <span className="text-emerald-400 animate-pulse">★ あなたのターンです！</span>
             ) : (
-              <span className="text-slate-400">相手のターンです...</span>
+              <span className="text-slate-400">相手の思考・行動中...</span>
             )}
           </div>
+          <span className="text-slate-600">|</span>
+          <button
+            onClick={() => setFlipBoard(!flipBoard)}
+            className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-[11px] text-slate-300 font-semibold transition-all"
+          >
+            <RotateCw className="w-3 h-3 text-cyan-400" />
+            <span>視点反転: {flipBoard ? 'ON (P2)' : 'OFF (P1)'}</span>
+          </button>
         </div>
       )}
 
       {/* Main Content Area */}
       <main className="w-full max-w-7xl flex-1 p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Action Cards & Wall Stock */}
+        {/* Left Column: Action Cards & Wall Stock + D-Pad Controller */}
         <div className="lg:col-span-4 flex flex-col gap-5 order-2 lg:order-1">
           <WallStockPanel
             state={gameState}
             onSelectWallLength={handleSelectWallLength}
             onToggleOrientation={handleToggleOrientation}
+            onConfirmPlaceWall={handleWallClick}
+            cursorGroove={cursorGroove}
+            onChangeCursorGroove={setCursorGroove}
             isMyTurn={isMyTurnInMode()}
+            myPlayerId={myPlayerId}
           />
           <CardPanel
             state={gameState}
             onActivateCard={handleActivateCard}
             onCancelCard={handleCancelCard}
             isMyTurn={isMyTurnInMode()}
+            myPlayerId={myPlayerId}
           />
         </div>
 
-        {/* Center Column: Interactive 9x9 Board */}
+        {/* Center Column: Animated Card Banner & Interactive 9x9 Board */}
         <div className="lg:col-span-5 flex flex-col items-center order-1 lg:order-2 w-full">
+          <CardPlayBanner state={gameState} />
           <Board
             state={gameState}
             validMoves={validMoves}
@@ -293,6 +331,9 @@ export default function Home() {
             onWallClick={handleWallClick}
             onRecallWallClick={handleRecallWallClick}
             isMyTurn={isMyTurnInMode()}
+            flipped={flipBoard}
+            cursorGroove={gameState.selectedWallLength !== null ? cursorGroove : null}
+            onCursorGrooveChange={setCursorGroove}
           />
         </div>
 
@@ -304,9 +345,8 @@ export default function Home() {
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs text-slate-400 space-y-2">
             <h4 className="font-bold text-slate-200">💡 プレイのヒント</h4>
             <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed">
-              <li>壁は長さ 1, 2, 3 の3種があります。</li>
-              <li>相手または自分のパスを<span className="text-rose-400 font-bold">完全に塞ぐ配置は禁止</span>です。</li>
-              <li>カードは各自5枚所持し、すべて公開情報です。相手の手札も意識して戦いましょう！</li>
+              <li>【壁2個設置】は1個目の壁を置いた時点でカードが消費（使用済）になります！</li>
+              <li>Firebase リアルタイム通信により環境・通信制限を問わずオンライン対戦が可能です。</li>
             </ul>
           </div>
         </div>

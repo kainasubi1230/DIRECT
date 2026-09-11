@@ -17,6 +17,9 @@ interface BoardProps {
   onWallClick: (wallData: { r: number; c: number; orientation: WallOrientation; length: WallLength }) => void;
   onRecallWallClick: (wallId: string) => void;
   isMyTurn: boolean;
+  flipped?: boolean;
+  cursorGroove?: { r: number; c: number } | null;
+  onCursorGrooveChange?: (groove: { r: number; c: number }) => void;
 }
 
 export const Board: React.FC<BoardProps> = ({
@@ -26,14 +29,16 @@ export const Board: React.FC<BoardProps> = ({
   onWallClick,
   onRecallWallClick,
   isMyTurn,
+  flipped = false,
+  cursorGroove = null,
+  onCursorGrooveChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
-  const [hoverGroove, setHoverGroove] = useState<{
+  const [localHoverGroove, setLocalHoverGroove] = useState<{
     r: number;
     c: number;
-    orientation: WallOrientation;
   } | null>(null);
 
   const {
@@ -56,8 +61,8 @@ export const Board: React.FC<BoardProps> = ({
   useEffect(() => {
     const updateScale = () => {
       if (containerRef.current) {
-        const availableWidth = containerRef.current.clientWidth - 16; // 16px margin padding
-        const baseWidth = 584; // Base native board width
+        const availableWidth = containerRef.current.clientWidth - 16;
+        const baseWidth = 584;
         if (availableWidth < baseWidth) {
           setScale(Math.max(0.48, availableWidth / baseWidth));
         } else {
@@ -71,6 +76,9 @@ export const Board: React.FC<BoardProps> = ({
     return () => window.removeEventListener('resize', updateScale);
   }, []);
 
+  // Active groove for wall placement preview (cursorGroove from D-Pad or mouse hover)
+  const activeGroove = isPlacingWallMode ? cursorGroove || localHoverGroove : null;
+
   // Helper to check if a cell position matches valid move candidates
   const getMoveTypeAt = (r: number, c: number) => {
     if (!isMyTurn) return null;
@@ -80,11 +88,11 @@ export const Board: React.FC<BoardProps> = ({
 
   // Helper to evaluate hover wall validity
   let hoverValidation: { valid: boolean; reason?: string } | null = null;
-  if (hoverGroove && isPlacingWallMode && selectedWallLength) {
+  if (activeGroove && isPlacingWallMode && selectedWallLength) {
     hoverValidation = canPlaceWall(
       {
-        r: hoverGroove.r,
-        c: hoverGroove.c,
+        r: activeGroove.r,
+        c: activeGroove.c,
         orientation: selectedWallOrientation,
         length: selectedWallLength,
         placedBy: currentTurn,
@@ -97,9 +105,9 @@ export const Board: React.FC<BoardProps> = ({
 
   // Render groove hover previews
   const renderHoverWall = () => {
-    if (!hoverGroove || !isPlacingWallMode || !selectedWallLength || !hoverValidation) return null;
+    if (!activeGroove || !isPlacingWallMode || !selectedWallLength || !hoverValidation) return null;
 
-    const { r, c } = hoverGroove;
+    const { r, c } = activeGroove;
     const isH = selectedWallOrientation === 'H';
     const isValid = hoverValidation.valid;
 
@@ -125,19 +133,20 @@ export const Board: React.FC<BoardProps> = ({
 
     return (
       <div
-        className={`absolute pointer-events-none z-30 transition-all duration-150 rounded-full flex items-center justify-center border-2 ${
+        className={`absolute pointer-events-none z-30 transition-all duration-150 rounded-full flex items-center justify-center border-2 animate-pulse ${
           isValid
-            ? 'bg-emerald-500/60 border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.8)]'
-            : 'bg-rose-500/60 border-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.8)]'
+            ? 'bg-emerald-500/70 border-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.9)]'
+            : 'bg-rose-500/70 border-rose-300 shadow-[0_0_20px_rgba(244,63,94,0.9)]'
         }`}
         style={{
           left: `${left}px`,
           top: `${top}px`,
           width: `${width}px`,
           height: `${height}px`,
+          transform: flipped ? 'rotate(180deg)' : 'none',
         }}
       >
-        <span className="text-[10px] font-bold text-white px-1 select-none drop-shadow whitespace-nowrap">
+        <span className="text-[10px] font-extrabold text-white px-1 select-none drop-shadow whitespace-nowrap">
           {isValid ? `長さ ${selectedWallLength}` : hoverValidation.reason}
         </span>
       </div>
@@ -197,7 +206,10 @@ export const Board: React.FC<BoardProps> = ({
           }}
         >
           <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[9px] font-black text-white/90 drop-shadow select-none">
+            <span
+              className="text-[9px] font-black text-white/90 drop-shadow select-none"
+              style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+            >
               L{w.length}
             </span>
           </div>
@@ -212,7 +224,7 @@ export const Board: React.FC<BoardProps> = ({
     <div ref={containerRef} className="w-full flex flex-col items-center justify-center overflow-hidden touch-manipulation">
       <div
         style={{
-          transform: `scale(${scale})`,
+          transform: `scale(${scale}) ${flipped ? 'rotate(180deg)' : ''}`,
           transformOrigin: 'top center',
           marginBottom: `${(scale - 1) * 584}px`,
         }}
@@ -221,7 +233,11 @@ export const Board: React.FC<BoardProps> = ({
         {/* Top Column Labels */}
         <div className="flex pl-8 mb-1">
           {colLabels.map((lbl, idx) => (
-            <div key={idx} className="w-[64px] text-center text-xs font-semibold text-slate-400">
+            <div
+              key={idx}
+              className="w-[64px] text-center text-xs font-semibold text-slate-400"
+              style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+            >
               {lbl}
             </div>
           ))}
@@ -231,7 +247,11 @@ export const Board: React.FC<BoardProps> = ({
           {/* Left Row Labels */}
           <div className="flex flex-col pr-2 justify-around">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <div key={num} className="h-[64px] flex items-center text-xs font-semibold text-slate-400">
+              <div
+                key={num}
+                className="h-[64px] flex items-center text-xs font-semibold text-slate-400"
+                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+              >
                 {num}
               </div>
             ))}
@@ -241,12 +261,18 @@ export const Board: React.FC<BoardProps> = ({
           <div className="relative p-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)]">
             {/* Goal Line Indicators */}
             <div className="absolute top-1 left-2 right-2 h-1.5 bg-gradient-to-r from-rose-500/20 via-rose-500/80 to-rose-500/20 rounded-full animate-pulse flex items-center justify-center">
-              <span className="text-[9px] text-rose-300/80 font-bold uppercase tracking-widest -mt-4">
+              <span
+                className="text-[9px] text-rose-300/80 font-bold uppercase tracking-widest -mt-4"
+                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+              >
                 P1 Goal (Row 1)
               </span>
             </div>
             <div className="absolute bottom-1 left-2 right-2 h-1.5 bg-gradient-to-r from-cyan-500/20 via-cyan-500/80 to-cyan-500/20 rounded-full animate-pulse flex items-center justify-center">
-              <span className="text-[9px] text-cyan-300/80 font-bold uppercase tracking-widest -mb-4">
+              <span
+                className="text-[9px] text-cyan-300/80 font-bold uppercase tracking-widest -mb-4"
+                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+              >
                 P2 Goal (Row 9)
               </span>
             </div>
@@ -254,7 +280,7 @@ export const Board: React.FC<BoardProps> = ({
             {/* Placed Walls */}
             {renderPlacedWalls()}
 
-            {/* Wall Hover Preview */}
+            {/* Wall Hover / D-Pad Preview */}
             {renderHoverWall()}
 
             {/* Grid Cells */}
@@ -288,10 +314,10 @@ export const Board: React.FC<BoardProps> = ({
                       {/* Hover groove triggers for Wall Placement */}
                       {isPlacingWallMode && r < 8 && c < 8 && (
                         <div
-                          onMouseEnter={() =>
-                            setHoverGroove({ r, c, orientation: selectedWallOrientation })
-                          }
-                          onMouseLeave={() => setHoverGroove(null)}
+                          onMouseEnter={() => {
+                            setLocalHoverGroove({ r, c });
+                            onCursorGrooveChange?.({ r, c });
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (selectedWallLength) {
@@ -303,7 +329,7 @@ export const Board: React.FC<BoardProps> = ({
                               });
                             }
                           }}
-                          className="absolute -bottom-[12px] -right-[12px] w-[24px] h-[24px] z-40 cursor-pointer rounded-full hover:bg-amber-400/40"
+                          className="absolute -bottom-[12px] -right-[12px] w-[28px] h-[28px] z-40 cursor-pointer rounded-full hover:bg-amber-400/40"
                         />
                       )}
 
@@ -312,12 +338,18 @@ export const Board: React.FC<BoardProps> = ({
                         <div className="w-5 h-5 rounded-full bg-emerald-400/80 animate-ping" />
                       )}
                       {moveType === 'JUMP_CARD' && (
-                        <div className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center">
+                        <div
+                          className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center"
+                          style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+                        >
                           <span className="text-[10px] font-bold text-white">J</span>
                         </div>
                       )}
                       {moveType === 'DOUBLE_MOVE_CARD' && (
-                        <div className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center">
+                        <div
+                          className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center"
+                          style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
+                        >
                           <span className="text-[10px] font-bold text-black">2x</span>
                         </div>
                       )}

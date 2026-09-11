@@ -17,7 +17,7 @@ interface BoardProps {
   onWallClick: (wallData: { r: number; c: number; orientation: WallOrientation; length: WallLength }) => void;
   onRecallWallClick: (wallId: string) => void;
   isMyTurn: boolean;
-  flipped?: boolean;
+  flipped?: boolean; // True for Player 2 perspective (starts at bottom, moves up to top goal)
   cursorGroove?: { r: number; c: number } | null;
   onCursorGrooveChange?: (groove: { r: number; c: number }) => void;
 }
@@ -119,16 +119,31 @@ export const Board: React.FC<BoardProps> = ({
     let width = 0;
     let height = 0;
 
-    if (isH) {
-      left = c * cellStep + 8;
-      top = r * cellStep + 50;
-      width = selectedWallLength * cellStep - 12;
-      height = wallThickness;
+    if (!flipped) {
+      if (isH) {
+        left = c * cellStep + 8;
+        top = r * cellStep + 50;
+        width = selectedWallLength * cellStep - 12;
+        height = wallThickness;
+      } else {
+        left = c * cellStep + 50;
+        top = r * cellStep + 8;
+        width = wallThickness;
+        height = selectedWallLength * cellStep - 12;
+      }
     } else {
-      left = c * cellStep + 50;
-      top = r * cellStep + 8;
-      width = wallThickness;
-      height = selectedWallLength * cellStep - 12;
+      // Flipped coordinates (Player 2 perspective)
+      if (isH) {
+        left = (9 - c - selectedWallLength) * cellStep + 8;
+        top = (7 - r) * cellStep + 50;
+        width = selectedWallLength * cellStep - 12;
+        height = wallThickness;
+      } else {
+        left = (7 - c) * cellStep + 50;
+        top = (9 - r - selectedWallLength) * cellStep + 8;
+        width = wallThickness;
+        height = selectedWallLength * cellStep - 12;
+      }
     }
 
     return (
@@ -143,7 +158,6 @@ export const Board: React.FC<BoardProps> = ({
           top: `${top}px`,
           width: `${width}px`,
           height: `${height}px`,
-          transform: flipped ? 'rotate(180deg)' : 'none',
         }}
       >
         <span className="text-[10px] font-extrabold text-white px-1 select-none drop-shadow whitespace-nowrap">
@@ -167,16 +181,31 @@ export const Board: React.FC<BoardProps> = ({
       let width = 0;
       let height = 0;
 
-      if (isH) {
-        left = w.c * cellStep + 8;
-        top = w.r * cellStep + 50;
-        width = w.length * cellStep - 12;
-        height = wallThickness;
+      if (!flipped) {
+        if (isH) {
+          left = w.c * cellStep + 8;
+          top = w.r * cellStep + 50;
+          width = w.length * cellStep - 12;
+          height = wallThickness;
+        } else {
+          left = w.c * cellStep + 50;
+          top = w.r * cellStep + 8;
+          width = wallThickness;
+          height = w.length * cellStep - 12;
+        }
       } else {
-        left = w.c * cellStep + 50;
-        top = w.r * cellStep + 8;
-        width = wallThickness;
-        height = w.length * cellStep - 12;
+        // Flipped coordinates for Player 2 perspective
+        if (isH) {
+          left = (9 - w.c - w.length) * cellStep + 8;
+          top = (7 - w.r) * cellStep + 50;
+          width = w.length * cellStep - 12;
+          height = wallThickness;
+        } else {
+          left = (7 - w.c) * cellStep + 50;
+          top = (9 - w.r - w.length) * cellStep + 8;
+          width = wallThickness;
+          height = w.length * cellStep - 12;
+        }
       }
 
       const isSelectableRecall = isRecallWallMode;
@@ -206,10 +235,7 @@ export const Board: React.FC<BoardProps> = ({
           }}
         >
           <div className="w-full h-full flex items-center justify-center">
-            <span
-              className="text-[9px] font-black text-white/90 drop-shadow select-none"
-              style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-            >
+            <span className="text-[9px] font-black text-white/90 drop-shadow select-none">
               L{w.length}
             </span>
           </div>
@@ -218,13 +244,19 @@ export const Board: React.FC<BoardProps> = ({
     });
   };
 
-  const colLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+  const colLabels = flipped
+    ? ['I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A']
+    : ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+
+  const rowLabels = flipped
+    ? [9, 8, 7, 6, 5, 4, 3, 2, 1]
+    : [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
   return (
     <div ref={containerRef} className="w-full flex flex-col items-center justify-center overflow-hidden touch-manipulation">
       <div
         style={{
-          transform: `scale(${scale}) ${flipped ? 'rotate(180deg)' : ''}`,
+          transform: `scale(${scale})`,
           transformOrigin: 'top center',
           marginBottom: `${(scale - 1) * 584}px`,
         }}
@@ -233,11 +265,7 @@ export const Board: React.FC<BoardProps> = ({
         {/* Top Column Labels */}
         <div className="flex pl-8 mb-1">
           {colLabels.map((lbl, idx) => (
-            <div
-              key={idx}
-              className="w-[64px] text-center text-xs font-semibold text-slate-400"
-              style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-            >
+            <div key={idx} className="w-[64px] text-center text-xs font-semibold text-slate-400">
               {lbl}
             </div>
           ))}
@@ -246,12 +274,8 @@ export const Board: React.FC<BoardProps> = ({
         <div className="flex">
           {/* Left Row Labels */}
           <div className="flex flex-col pr-2 justify-around">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <div
-                key={num}
-                className="h-[64px] flex items-center text-xs font-semibold text-slate-400"
-                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-              >
+            {rowLabels.map((num) => (
+              <div key={num} className="h-[64px] flex items-center text-xs font-semibold text-slate-400">
                 {num}
               </div>
             ))}
@@ -261,19 +285,13 @@ export const Board: React.FC<BoardProps> = ({
           <div className="relative p-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)]">
             {/* Goal Line Indicators */}
             <div className="absolute top-1 left-2 right-2 h-1.5 bg-gradient-to-r from-rose-500/20 via-rose-500/80 to-rose-500/20 rounded-full animate-pulse flex items-center justify-center">
-              <span
-                className="text-[9px] text-rose-300/80 font-bold uppercase tracking-widest -mt-4"
-                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-              >
-                P1 Goal (Row 1)
+              <span className="text-[9px] font-extrabold uppercase tracking-widest -mt-4 text-emerald-300 drop-shadow">
+                {flipped ? '★ P2 のゴールライン (9行目)' : '★ P1 のゴールライン (1行目)'}
               </span>
             </div>
             <div className="absolute bottom-1 left-2 right-2 h-1.5 bg-gradient-to-r from-cyan-500/20 via-cyan-500/80 to-cyan-500/20 rounded-full animate-pulse flex items-center justify-center">
-              <span
-                className="text-[9px] text-cyan-300/80 font-bold uppercase tracking-widest -mb-4"
-                style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-              >
-                P2 Goal (Row 9)
+              <span className="text-[9px] font-extrabold uppercase tracking-widest -mb-4 text-slate-400">
+                {flipped ? 'P2 のスタート位置 (1行目)' : 'P1 のスタート位置 (9行目)'}
               </span>
             </div>
 
@@ -285,8 +303,12 @@ export const Board: React.FC<BoardProps> = ({
 
             {/* Grid Cells */}
             <div className="grid grid-cols-9 gap-[12px]">
-              {Array.from({ length: BOARD_SIZE }).map((_, r) =>
-                Array.from({ length: BOARD_SIZE }).map((_, c) => {
+              {Array.from({ length: BOARD_SIZE }).map((_, displayR) =>
+                Array.from({ length: BOARD_SIZE }).map((_, displayC) => {
+                  // Map display coordinates to actual game engine coordinates
+                  const r = flipped ? 8 - displayR : displayR;
+                  const c = flipped ? 8 - displayC : displayC;
+
                   const moveType = getMoveTypeAt(r, c);
                   const isP1 = players[1].pos.r === r && players[1].pos.c === c;
                   const isP2 = players[2].pos.r === r && players[2].pos.c === c;
@@ -299,7 +321,7 @@ export const Board: React.FC<BoardProps> = ({
 
                   return (
                     <div
-                      key={`${r}-${c}`}
+                      key={`${displayR}-${displayC}`}
                       onClick={() => {
                         if (moveType) {
                           onCellClick({ r, c });
@@ -317,7 +339,7 @@ export const Board: React.FC<BoardProps> = ({
                           : ''
                       }`}
                     >
-                      {/* Horizontal Groove Trigger (Below Cell) */}
+                      {/* Horizontal Groove Trigger */}
                       {isHGrooveValid && (
                         <div
                           onMouseEnter={() => {
@@ -335,11 +357,13 @@ export const Board: React.FC<BoardProps> = ({
                               });
                             }
                           }}
-                          className="absolute -bottom-[12px] left-0 w-full h-[24px] z-40 cursor-pointer rounded-md hover:bg-amber-400/40"
+                          className={`absolute z-40 cursor-pointer rounded-md hover:bg-amber-400/40 ${
+                            !flipped ? '-bottom-[12px] left-0 w-full h-[24px]' : '-top-[12px] left-0 w-full h-[24px]'
+                          }`}
                         />
                       )}
 
-                      {/* Vertical Groove Trigger (Right of Cell) */}
+                      {/* Vertical Groove Trigger */}
                       {isVGrooveValid && (
                         <div
                           onMouseEnter={() => {
@@ -357,7 +381,9 @@ export const Board: React.FC<BoardProps> = ({
                               });
                             }
                           }}
-                          className="absolute -right-[12px] top-0 w-[24px] h-full z-40 cursor-pointer rounded-md hover:bg-amber-400/40"
+                          className={`absolute z-40 cursor-pointer rounded-md hover:bg-amber-400/40 ${
+                            !flipped ? '-right-[12px] top-0 w-[24px] h-full' : '-left-[12px] top-0 w-[24px] h-full'
+                          }`}
                         />
                       )}
 
@@ -366,18 +392,12 @@ export const Board: React.FC<BoardProps> = ({
                         <div className="w-5 h-5 rounded-full bg-emerald-400/80 animate-ping" />
                       )}
                       {moveType === 'JUMP_CARD' && (
-                        <div
-                          className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center"
-                          style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-                        >
+                        <div className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center">
                           <span className="text-[10px] font-bold text-white">J</span>
                         </div>
                       )}
                       {moveType === 'DOUBLE_MOVE_CARD' && (
-                        <div
-                          className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center"
-                          style={{ transform: flipped ? 'rotate(180deg)' : 'none' }}
-                        >
+                        <div className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center">
                           <span className="text-[10px] font-bold text-black">2x</span>
                         </div>
                       )}

@@ -31,6 +31,7 @@ import { GameLog } from '@/components/GameLog';
 import { OnlineRoomModal } from '@/components/OnlineRoomModal';
 import { RuleModal } from '@/components/RuleModal';
 import { VictoryModal } from '@/components/VictoryModal';
+import { Globe, Users, Wifi } from 'lucide-react';
 
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>(() => createInitialState('LOCAL', 'MEDIUM'));
@@ -62,6 +63,22 @@ export default function Home() {
       peerManager.sendStateSync(newState);
     }
   };
+
+  // Auto-close Online Modal when connected & Host sync state
+  useEffect(() => {
+    if (onlineStatus === 'CONNECTED') {
+      const timer = setTimeout(() => {
+        setIsOnlineModalOpen(false);
+      }, 1200);
+
+      // If host, send current initial state to guest
+      if (myPlayerId === 1) {
+        peerManager.sendStateSync(gameState);
+      }
+
+      return () => clearTimeout(timer);
+    }
+  }, [onlineStatus, myPlayerId, gameState]);
 
   // AI Turn Triggering Effect
   useEffect(() => {
@@ -220,8 +237,37 @@ export default function Home() {
         onToggleMute={handleToggleMute}
       />
 
+      {/* Online Match Role & Turn Banner */}
+      {gameState.gameMode === 'ONLINE_P2P' && (
+        <div className="w-full bg-slate-900/90 border-b border-cyan-500/30 px-4 py-2 flex items-center justify-center gap-3 text-xs shadow-md">
+          <div className="flex items-center gap-1.5 font-bold text-cyan-400">
+            <Wifi className="w-4 h-4 animate-pulse text-emerald-400" />
+            <span>ROOM: {roomCode || '---'}</span>
+          </div>
+          <span className="text-slate-600">|</span>
+          <div className="flex items-center gap-1.5">
+            <span>あなたは</span>
+            <span
+              className="font-black px-2 py-0.5 rounded-full text-white"
+              style={{ backgroundColor: myPlayerId === 1 ? '#ef4444' : '#3b82f6' }}
+            >
+              P{myPlayerId} ({myPlayerId === 1 ? '赤 / ホスト' : '青 / ゲスト'})
+            </span>
+            <span>です</span>
+          </div>
+          <span className="text-slate-600">|</span>
+          <div className="font-extrabold">
+            {gameState.currentTurn === myPlayerId ? (
+              <span className="text-emerald-400 animate-pulse">★ あなたのターンです！</span>
+            ) : (
+              <span className="text-slate-400">相手のターンです...</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
-      <main className="w-full max-w-7xl flex-1 p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <main className="w-full max-w-7xl flex-1 p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Column: Action Cards & Wall Stock */}
         <div className="lg:col-span-4 flex flex-col gap-5 order-2 lg:order-1">
           <WallStockPanel
@@ -239,7 +285,7 @@ export default function Home() {
         </div>
 
         {/* Center Column: Interactive 9x9 Board */}
-        <div className="lg:col-span-5 flex flex-col items-center order-1 lg:order-2">
+        <div className="lg:col-span-5 flex flex-col items-center order-1 lg:order-2 w-full">
           <Board
             state={gameState}
             validMoves={validMoves}

@@ -43,7 +43,7 @@ export class PeerManager {
       console.log('Guest connected to host!');
       this.conn = connection;
       this.setupConnectionHandlers();
-      this.onStatusChangeCallback?.('CONNECTED', '対戦相手が接続しました！');
+      this.onStatusChangeCallback?.('CONNECTED', '対戦相手が接続しました！対戦を開始します...');
     });
 
     this.peer.on('error', (err: any) => {
@@ -83,7 +83,7 @@ export class PeerManager {
     if (!this.conn) return;
 
     this.conn.on('open', () => {
-      this.onStatusChangeCallback?.('CONNECTED', 'オンライン対戦中');
+      this.onStatusChangeCallback?.('CONNECTED', '接続完了！対戦画面に移行します...');
     });
 
     this.conn.on('data', (data: PeerMessageType) => {

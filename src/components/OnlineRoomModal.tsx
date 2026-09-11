@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Globe, Copy, Check, X, Users, Play } from 'lucide-react';
+import { Globe, Copy, Check, X, Users, Play, Sparkles } from 'lucide-react';
 
 interface OnlineRoomModalProps {
   isOpen: boolean;
@@ -56,7 +56,7 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
       <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-5">
         <button
           onClick={onClose}
@@ -78,15 +78,26 @@ export const OnlineRoomModal: React.FC<OnlineRoomModalProps> = ({
         {/* Status Alert Banner */}
         {connectionStatus !== 'DISCONNECTED' && (
           <div
-            className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${
+            className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between shadow-lg ${
               connectionStatus === 'CONNECTED'
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                 : connectionStatus === 'CONNECTING'
-                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse'
-                : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 animate-pulse'
+                : 'bg-rose-500/20 border-rose-500/50 text-rose-300'
             }`}
           >
-            <span>{statusMessage || connectionStatus}</span>
+            <div className="flex items-center gap-2">
+              {connectionStatus === 'CONNECTED' && <Sparkles className="w-4 h-4 text-emerald-400 animate-bounce" />}
+              <span>{statusMessage || connectionStatus}</span>
+            </div>
+            {connectionStatus === 'CONNECTED' && (
+              <button
+                onClick={onClose}
+                className="px-3 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg text-xs transition-all"
+              >
+                対戦画面へ
+              </button>
+            )}
           </div>
         )}
 

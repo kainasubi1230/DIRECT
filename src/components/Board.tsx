@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   GameState,
   Position,
-  Wall,
   WallLength,
   WallOrientation,
-  MoveCandidate,
-  PlayerId
+  MoveCandidate
 } from '@/types/game';
 import { BOARD_SIZE, canPlaceWall } from '@/lib/gameEngine';
 
@@ -29,6 +27,9 @@ export const Board: React.FC<BoardProps> = ({
   onRecallWallClick,
   isMyTurn,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
   const [hoverGroove, setHoverGroove] = useState<{
     r: number;
     c: number;
@@ -42,7 +43,6 @@ export const Board: React.FC<BoardProps> = ({
     selectedWallLength,
     selectedWallOrientation,
     actionPhase,
-    activeCardEffect,
   } = state;
 
   const isPlacingWallMode =
@@ -51,6 +51,25 @@ export const Board: React.FC<BoardProps> = ({
     (actionPhase === 'SELECT_ACTION' || actionPhase === 'DOUBLE_WALL_SECOND');
 
   const isRecallWallMode = isMyTurn && actionPhase === 'RECALL_WALL_SELECT';
+
+  // Responsive Auto-Scaling for Mobile & Various Screens
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const availableWidth = containerRef.current.clientWidth - 16; // 16px margin padding
+        const baseWidth = 584; // Base native board width
+        if (availableWidth < baseWidth) {
+          setScale(Math.max(0.48, availableWidth / baseWidth));
+        } else {
+          setScale(1);
+        }
+      }
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, []);
 
   // Helper to check if a cell position matches valid move candidates
   const getMoveTypeAt = (r: number, c: number) => {
@@ -84,8 +103,6 @@ export const Board: React.FC<BoardProps> = ({
     const isH = selectedWallOrientation === 'H';
     const isValid = hoverValidation.valid;
 
-    // Calculate pixel position on 9x9 grid
-    // Cell size ~52px, gap ~12px
     const cellStep = 64; // 52px cell + 12px gap
     const wallThickness = 10;
 
@@ -120,7 +137,7 @@ export const Board: React.FC<BoardProps> = ({
           height: `${height}px`,
         }}
       >
-        <span className="text-[10px] font-bold text-white px-1 select-none drop-shadow">
+        <span className="text-[10px] font-bold text-white px-1 select-none drop-shadow whitespace-nowrap">
           {isValid ? `長さ ${selectedWallLength}` : hoverValidation.reason}
         </span>
       </div>
@@ -179,7 +196,6 @@ export const Board: React.FC<BoardProps> = ({
             height: `${height}px`,
           }}
         >
-          {/* Wall length badge */}
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-[9px] font-black text-white/90 drop-shadow select-none">
               L{w.length}
@@ -193,128 +209,143 @@ export const Board: React.FC<BoardProps> = ({
   const colLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
   return (
-    <div className="flex flex-col items-center select-none">
-      {/* Top Column Labels */}
-      <div className="flex pl-8 mb-1">
-        {colLabels.map((lbl, idx) => (
-          <div key={idx} className="w-[64px] text-center text-xs font-semibold text-slate-400">
-            {lbl}
-          </div>
-        ))}
-      </div>
-
-      <div className="flex">
-        {/* Left Row Labels */}
-        <div className="flex flex-col pr-2 justify-around">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-            <div key={num} className="h-[64px] flex items-center text-xs font-semibold text-slate-400">
-              {num}
+    <div ref={containerRef} className="w-full flex flex-col items-center justify-center overflow-hidden touch-manipulation">
+      <div
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+          marginBottom: `${(scale - 1) * 584}px`,
+        }}
+        className="flex flex-col items-center select-none transition-transform duration-150"
+      >
+        {/* Top Column Labels */}
+        <div className="flex pl-8 mb-1">
+          {colLabels.map((lbl, idx) => (
+            <div key={idx} className="w-[64px] text-center text-xs font-semibold text-slate-400">
+              {lbl}
             </div>
           ))}
         </div>
 
-        {/* Board Main Frame */}
-        <div className="relative p-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)]">
-          {/* Goal Line Indicators */}
-          {/* Top Goal Row (Player 1 Goal) */}
-          <div className="absolute top-1 left-2 right-2 h-1 bg-gradient-to-r from-rose-500/20 via-rose-500/80 to-rose-500/20 rounded-full animate-pulse" />
-          {/* Bottom Goal Row (Player 2 Goal) */}
-          <div className="absolute bottom-1 left-2 right-2 h-1 bg-gradient-to-r from-cyan-500/20 via-cyan-500/80 to-cyan-500/20 rounded-full animate-pulse" />
+        <div className="flex">
+          {/* Left Row Labels */}
+          <div className="flex flex-col pr-2 justify-around">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+              <div key={num} className="h-[64px] flex items-center text-xs font-semibold text-slate-400">
+                {num}
+              </div>
+            ))}
+          </div>
 
-          {/* Placed Walls */}
-          {renderPlacedWalls()}
+          {/* Board Main Frame */}
+          <div className="relative p-2 bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8)]">
+            {/* Goal Line Indicators */}
+            <div className="absolute top-1 left-2 right-2 h-1.5 bg-gradient-to-r from-rose-500/20 via-rose-500/80 to-rose-500/20 rounded-full animate-pulse flex items-center justify-center">
+              <span className="text-[9px] text-rose-300/80 font-bold uppercase tracking-widest -mt-4">
+                P1 Goal (Row 1)
+              </span>
+            </div>
+            <div className="absolute bottom-1 left-2 right-2 h-1.5 bg-gradient-to-r from-cyan-500/20 via-cyan-500/80 to-cyan-500/20 rounded-full animate-pulse flex items-center justify-center">
+              <span className="text-[9px] text-cyan-300/80 font-bold uppercase tracking-widest -mb-4">
+                P2 Goal (Row 9)
+              </span>
+            </div>
 
-          {/* Wall Hover Preview */}
-          {renderHoverWall()}
+            {/* Placed Walls */}
+            {renderPlacedWalls()}
 
-          {/* Grid Cells */}
-          <div className="grid grid-cols-9 gap-[12px]">
-            {Array.from({ length: BOARD_SIZE }).map((_, r) =>
-              Array.from({ length: BOARD_SIZE }).map((_, c) => {
-                const moveType = getMoveTypeAt(r, c);
-                const isP1 = players[1].pos.r === r && players[1].pos.c === c;
-                const isP2 = players[2].pos.r === r && players[2].pos.c === c;
+            {/* Wall Hover Preview */}
+            {renderHoverWall()}
 
-                return (
-                  <div
-                    key={`${r}-${c}`}
-                    onClick={() => {
-                      if (moveType) {
-                        onCellClick({ r, c });
-                      }
-                    }}
-                    className={`relative w-[52px] h-[52px] rounded-xl flex items-center justify-center transition-all duration-200 ${
-                      r === 0
-                        ? 'bg-rose-950/20 border-b border-rose-500/30'
-                        : r === 8
-                        ? 'bg-cyan-950/20 border-t border-cyan-500/30'
-                        : 'bg-slate-900/90 border border-slate-800/80'
-                    } ${
-                      moveType
-                        ? 'cursor-pointer scale-105 border-emerald-400 bg-emerald-950/30 shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:scale-110'
-                        : ''
-                    }`}
-                  >
-                    {/* Hover groove triggers for Wall Placement */}
-                    {isPlacingWallMode && r < 8 && c < 8 && (
-                      <div
-                        onMouseEnter={() =>
-                          setHoverGroove({ r, c, orientation: selectedWallOrientation })
+            {/* Grid Cells */}
+            <div className="grid grid-cols-9 gap-[12px]">
+              {Array.from({ length: BOARD_SIZE }).map((_, r) =>
+                Array.from({ length: BOARD_SIZE }).map((_, c) => {
+                  const moveType = getMoveTypeAt(r, c);
+                  const isP1 = players[1].pos.r === r && players[1].pos.c === c;
+                  const isP2 = players[2].pos.r === r && players[2].pos.c === c;
+
+                  return (
+                    <div
+                      key={`${r}-${c}`}
+                      onClick={() => {
+                        if (moveType) {
+                          onCellClick({ r, c });
                         }
-                        onMouseLeave={() => setHoverGroove(null)}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (selectedWallLength) {
-                            onWallClick({
-                              r,
-                              c,
-                              orientation: selectedWallOrientation,
-                              length: selectedWallLength,
-                            });
+                      }}
+                      className={`relative w-[52px] h-[52px] rounded-xl flex items-center justify-center transition-all duration-200 ${
+                        r === 0
+                          ? 'bg-rose-950/20 border-b border-rose-500/30'
+                          : r === 8
+                          ? 'bg-cyan-950/20 border-t border-cyan-500/30'
+                          : 'bg-slate-900/90 border border-slate-800/80'
+                      } ${
+                        moveType
+                          ? 'cursor-pointer scale-105 border-emerald-400 bg-emerald-950/30 shadow-[0_0_15px_rgba(52,211,153,0.3)] hover:scale-110'
+                          : ''
+                      }`}
+                    >
+                      {/* Hover groove triggers for Wall Placement */}
+                      {isPlacingWallMode && r < 8 && c < 8 && (
+                        <div
+                          onMouseEnter={() =>
+                            setHoverGroove({ r, c, orientation: selectedWallOrientation })
                           }
-                        }}
-                        className="absolute -bottom-[12px] -right-[12px] w-[24px] h-[24px] z-40 cursor-pointer rounded-full hover:bg-amber-400/40"
-                      />
-                    )}
+                          onMouseLeave={() => setHoverGroove(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selectedWallLength) {
+                              onWallClick({
+                                r,
+                                c,
+                                orientation: selectedWallOrientation,
+                                length: selectedWallLength,
+                              });
+                            }
+                          }}
+                          className="absolute -bottom-[12px] -right-[12px] w-[24px] h-[24px] z-40 cursor-pointer rounded-full hover:bg-amber-400/40"
+                        />
+                      )}
 
-                    {/* Move Indicator Dot/Ring */}
-                    {moveType === 'NORMAL' && (
-                      <div className="w-5 h-5 rounded-full bg-emerald-400/80 animate-ping" />
-                    )}
-                    {moveType === 'JUMP_CARD' && (
-                      <div className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-white">J</span>
-                      </div>
-                    )}
-                    {moveType === 'DOUBLE_MOVE_CARD' && (
-                      <div className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-black">2x</span>
-                      </div>
-                    )}
+                      {/* Move Indicator Dot/Ring */}
+                      {moveType === 'NORMAL' && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-400/80 animate-ping" />
+                      )}
+                      {moveType === 'JUMP_CARD' && (
+                        <div className="w-6 h-6 rounded-full bg-purple-500/90 border-2 border-purple-300 animate-pulse flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-white">J</span>
+                        </div>
+                      )}
+                      {moveType === 'DOUBLE_MOVE_CARD' && (
+                        <div className="w-6 h-6 rounded-full bg-cyan-400/90 border-2 border-cyan-200 animate-pulse flex items-center justify-center">
+                          <span className="text-[10px] font-bold text-black">2x</span>
+                        </div>
+                      )}
 
-                    {/* Player 1 Token (Red) */}
-                    {isP1 && (
-                      <div className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-rose-700 via-red-500 to-rose-400 border-2 border-white/80 shadow-[0_0_20px_rgba(239,68,68,0.8)] flex items-center justify-center transform transition-transform duration-300">
-                        <div className="w-4 h-4 rounded-full bg-white/90 shadow-inner" />
-                        {currentTurn === 1 && (
-                          <div className="absolute -inset-1 rounded-full border-2 border-rose-400 animate-ping opacity-75 pointer-events-none" />
-                        )}
-                      </div>
-                    )}
+                      {/* Player 1 Token (Red) */}
+                      {isP1 && (
+                        <div className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-rose-700 via-red-500 to-rose-400 border-2 border-white/80 shadow-[0_0_20px_rgba(239,68,68,0.8)] flex items-center justify-center transform transition-transform duration-300">
+                          <div className="w-4 h-4 rounded-full bg-white/90 shadow-inner" />
+                          {currentTurn === 1 && (
+                            <div className="absolute -inset-1 rounded-full border-2 border-rose-400 animate-ping opacity-75 pointer-events-none" />
+                          )}
+                        </div>
+                      )}
 
-                    {/* Player 2 Token (Blue) */}
-                    {isP2 && (
-                      <div className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-cyan-500 to-sky-300 border-2 border-white/80 shadow-[0_0_20px_rgba(59,130,246,0.8)] flex items-center justify-center transform transition-transform duration-300">
-                        <div className="w-4 h-4 rounded-full bg-white/90 shadow-inner" />
-                        {currentTurn === 2 && (
-                          <div className="absolute -inset-1 rounded-full border-2 border-cyan-400 animate-ping opacity-75 pointer-events-none" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                      {/* Player 2 Token (Blue) */}
+                      {isP2 && (
+                        <div className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-cyan-500 to-sky-300 border-2 border-white/80 shadow-[0_0_20px_rgba(59,130,246,0.8)] flex items-center justify-center transform transition-transform duration-300">
+                          <div className="w-4 h-4 rounded-full bg-white/90 shadow-inner" />
+                          {currentTurn === 2 && (
+                            <div className="absolute -inset-1 rounded-full border-2 border-cyan-400 animate-ping opacity-75 pointer-events-none" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       </div>

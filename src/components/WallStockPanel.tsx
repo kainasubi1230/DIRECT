@@ -33,13 +33,17 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
 
   const isPlacingWall = selectedWallLength !== null;
 
+  // Max bounds for D-Pad cursor based on wall orientation and length
+  const maxR = selectedWallOrientation === 'H' ? 7 : (selectedWallLength ? 9 - selectedWallLength : 7);
+  const maxC = selectedWallOrientation === 'H' ? (selectedWallLength ? 9 - selectedWallLength : 7) : 7;
+
   // Evaluate D-Pad position validity
   let dPadValidation: { valid: boolean; reason?: string } | null = null;
   if (isPlacingWall && selectedWallLength) {
     dPadValidation = canPlaceWall(
       {
-        r: cursorGroove.r,
-        c: cursorGroove.c,
+        r: Math.min(cursorGroove.r, maxR),
+        c: Math.min(cursorGroove.c, maxC),
         orientation: selectedWallOrientation,
         length: selectedWallLength,
         placedBy: currentTurn,
@@ -50,7 +54,7 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
     );
   }
 
-  const colNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const colNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
 
   return (
     <div className="w-full bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
@@ -157,16 +161,15 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
         <div className="flex flex-col gap-3 p-3 bg-slate-950/80 border border-amber-500/40 rounded-2xl animate-fadeIn shadow-[0_0_20px_rgba(245,158,11,0.15)]">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-300">
-              📱 スマホ用 矢印ボタンで壁を移動・設置
+              📱 矢印ボタンで位置移動 (最右列 I列 対応)
             </span>
             <span className="text-[11px] font-mono font-bold text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">
-              位置: {cursorGroove.r + 1}行-{colNames[cursorGroove.c]}列
+              位置: {cursorGroove.r + 1}行-{colNames[Math.min(cursorGroove.c, maxC)]}列
             </span>
           </div>
 
           {/* D-Pad Buttons & Controls Grid */}
           <div className="flex items-center justify-around gap-2">
-            {/* D-Pad 4-Way Arrow Controller */}
             <div className="relative w-28 h-28 grid grid-cols-3 grid-rows-3 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner">
               <div />
               <button
@@ -196,7 +199,7 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
 
               <button
                 onClick={() =>
-                  onChangeCursorGroove((prev) => ({ ...prev, c: Math.min(7, prev.c + 1) }))
+                  onChangeCursorGroove((prev) => ({ ...prev, c: Math.min(maxC, prev.c + 1) }))
                 }
                 className="bg-slate-800 hover:bg-slate-700 active:bg-amber-500 active:text-slate-950 rounded-xl flex items-center justify-center text-slate-200 shadow"
                 title="右へ"
@@ -207,7 +210,7 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
               <div />
               <button
                 onClick={() =>
-                  onChangeCursorGroove((prev) => ({ ...prev, r: Math.min(7, prev.r + 1) }))
+                  onChangeCursorGroove((prev) => ({ ...prev, r: Math.min(maxR, prev.r + 1) }))
                 }
                 className="bg-slate-800 hover:bg-slate-700 active:bg-amber-500 active:text-slate-950 rounded-xl flex items-center justify-center text-slate-200 shadow"
                 title="下へ"
@@ -224,8 +227,8 @@ export const WallStockPanel: React.FC<WallStockPanelProps> = ({
                 onClick={() => {
                   if (dPadValidation?.valid) {
                     onConfirmPlaceWall({
-                      r: cursorGroove.r,
-                      c: cursorGroove.c,
+                      r: Math.min(cursorGroove.r, maxR),
+                      c: Math.min(cursorGroove.c, maxC),
                       orientation: selectedWallOrientation,
                       length: selectedWallLength,
                     });

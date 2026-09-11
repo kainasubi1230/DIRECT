@@ -291,6 +291,12 @@ export const Board: React.FC<BoardProps> = ({
                   const isP1 = players[1].pos.r === r && players[1].pos.c === c;
                   const isP2 = players[2].pos.r === r && players[2].pos.c === c;
 
+                  const isH = selectedWallOrientation === 'H';
+
+                  // Correct validation check for horizontal vs vertical groove triggers
+                  const isHGrooveValid = isPlacingWallMode && isH && r < 8 && selectedWallLength !== null && c + selectedWallLength <= 9;
+                  const isVGrooveValid = isPlacingWallMode && !isH && c < 8 && selectedWallLength !== null && r + selectedWallLength <= 9;
+
                   return (
                     <div
                       key={`${r}-${c}`}
@@ -311,8 +317,8 @@ export const Board: React.FC<BoardProps> = ({
                           : ''
                       }`}
                     >
-                      {/* Hover groove triggers for Wall Placement */}
-                      {isPlacingWallMode && r < 8 && c < 8 && (
+                      {/* Horizontal Groove Trigger (Below Cell) */}
+                      {isHGrooveValid && (
                         <div
                           onMouseEnter={() => {
                             setLocalHoverGroove({ r, c });
@@ -324,12 +330,34 @@ export const Board: React.FC<BoardProps> = ({
                               onWallClick({
                                 r,
                                 c,
-                                orientation: selectedWallOrientation,
+                                orientation: 'H',
                                 length: selectedWallLength,
                               });
                             }
                           }}
-                          className="absolute -bottom-[12px] -right-[12px] w-[28px] h-[28px] z-40 cursor-pointer rounded-full hover:bg-amber-400/40"
+                          className="absolute -bottom-[12px] left-0 w-full h-[24px] z-40 cursor-pointer rounded-md hover:bg-amber-400/40"
+                        />
+                      )}
+
+                      {/* Vertical Groove Trigger (Right of Cell) */}
+                      {isVGrooveValid && (
+                        <div
+                          onMouseEnter={() => {
+                            setLocalHoverGroove({ r, c });
+                            onCursorGrooveChange?.({ r, c });
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selectedWallLength) {
+                              onWallClick({
+                                r,
+                                c,
+                                orientation: 'V',
+                                length: selectedWallLength,
+                              });
+                            }
+                          }}
+                          className="absolute -right-[12px] top-0 w-[24px] h-full z-40 cursor-pointer rounded-md hover:bg-amber-400/40"
                         />
                       )}
 
